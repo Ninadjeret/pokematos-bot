@@ -12,7 +12,7 @@ bot.configs = new Discord.Collection()
 const config = require('./config.json')
 const api = axios.create({
   baseURL: config.api.baseUrl + '/bot',
-  timeout: 10000,
+  timeout: 20000,
   headers: {'Authorization': 'Bearer ' + config.api.token}
 });
 /*
@@ -114,10 +114,15 @@ bot.on('message', message => {
     if (message.author.bot) return
     if (message.channel.type === 'dm') return
 
+    let guildConfig = bot.configs.get(parseInt(message.guild.id));
     let isMessageToBot = (message.mentions.users.find(val => val.id === config.bot.id)) ? true : false;
     let isAdmin = (message.member.hasPermission("ADMINISTRATOR"));
 
-    //Gestion des commands
+    /*
+        ----------------------------------------------------------------------------
+        Commandes
+        ----------------------------------------------------------------------------
+     */
     if( isMessageToBot && isAdmin ) {
         let command = helpers.extractCommand(bot, message);
         console.log(command)
@@ -127,9 +132,28 @@ bot.on('message', message => {
 
     //Gestion des captures de raid
     else {
-        console.log(message.guild.id)
-        let guildConfig = bot.configs.get(parseInt(message.guild.id));
-        console.log(guildConfig);
+        /*
+            ----------------------------------------------------------------------------
+            Annonce d'un raid texte
+            ----------------------------------------------------------------------------
+         */
+        if( guildConfig.settings.raidreporting_text_prefixes.length > 0 ) {
+            guildConfig.settings.raidreporting_text_prefixes.forEach((prefix, i) => {
+                if( message.content.startsWith(prefix) ) {
+                    api.post('/raids', {
+                        text: message.content,
+                        user_name: message.author.username,
+                        user_discord_id: message.author.id,
+                        guild_discord_id: message.guild.id,
+                        message_discord_id: message.id,
+                        channel_discord_id: message.channel.id
+                      })
+                      .then(function (response) {
+                        console.log(response);
+                      })
+                }
+            })
+        }
         //if (message.content.startsWith()  )
         if (message.content === 'ping') {
             message.reply('pong');
