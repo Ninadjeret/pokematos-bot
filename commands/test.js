@@ -1,6 +1,6 @@
 module.require('discord.js')
 
-module.exports.run = async (bot, message, args) => {
+module.exports.run = async (bot, message, args, api) => {
     console.log('Coucou test');
 }
 

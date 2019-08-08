@@ -100,8 +100,22 @@ bot.on('ready', () => {
             guilds.forEach(async guild => {
                 await bot.configs.set(guild.discord_id, guild);
             })
-            console.log(bot.configs);
         })
+});
+
+/*
+    ============================================================================
+    Lors d'un nouveau membre
+    ============================================================================
+ */
+bot.on('guildMemberAdd', member => {
+    let guildConfig = bot.configs.get(member.guild.id);
+    if( guildConfig.settings.welcome_active ) {
+        let channel = member.guild.channels.find(val => val.id === guildConfig.settings.welcome_channel_discord_id);
+        if (!channel) return;
+        let welcomeMessage = guildConfig.settings.welcome_message;
+        channel.send( welcomeMessage.replace('{member}', member) );
+    }
 });
 
 
@@ -114,7 +128,7 @@ bot.on('message', message => {
     if (message.author.bot) return
     if (message.channel.type === 'dm') return
 
-    let guildConfig = bot.configs.get(parseInt(message.guild.id));
+    let guildConfig = bot.configs.get(message.guild.id);
     let isMessageToBot = (message.mentions.users.find(val => val.id === config.bot.id)) ? true : false;
     let isAdmin = (message.member.hasPermission("ADMINISTRATOR"));
 
@@ -127,7 +141,7 @@ bot.on('message', message => {
         let command = helpers.extractCommand(bot, message);
         console.log(command)
         let cmd = bot.commands.get(command.cmd)
-        if (cmd) cmd.run(bot, message, command.args)
+        if (cmd) cmd.run(bot, message, command.args, api)
     }
 
     //Gestion des captures de raid
@@ -137,7 +151,7 @@ bot.on('message', message => {
             Annonce d'un raid texte
             ----------------------------------------------------------------------------
          */
-        if( guildConfig.settings.raidreporting_text_prefixes.length > 0 ) {
+        if( guildConfig.settings.raidreporting_text_active && guildConfig.settings.raidreporting_text_prefixes.length > 0 ) {
             guildConfig.settings.raidreporting_text_prefixes.forEach((prefix, i) => {
                 if( message.content.startsWith(prefix) ) {
                     api.post('/raids', {
@@ -150,10 +164,40 @@ bot.on('message', message => {
                       })
                       .then(function (response) {
                         console.log(response);
-                      })
+                    })
+                    .catch(function (error) {
+                        console.log(error);
+                      });
                 }
             })
         }
+
+        /*
+            ----------------------------------------------------------------------------
+            Annonce d'un raid Image
+            ----------------------------------------------------------------------------
+         */
+        if( guildConfig.settings.raidreporting_images_active ) {
+            let attachment = message.attachments.first();
+            if(attachment && attachment.url) {
+                api.post('/raids', {
+                    text: attachment.url,
+                    user_name: message.author.username,
+                    user_discord_id: message.author.id,
+                    guild_discord_id: message.guild.id,
+                    message_discord_id: message.id,
+                    channel_discord_id: message.channel.id
+                  })
+                  .then(function (response) {
+                      console.log(response);
+                  })
+                  .catch(function (error) {
+                      console.log(error);
+                  });
+            }
+        }
+
+
         //if (message.content.startsWith()  )
         if (message.content === 'ping') {
             message.reply('pong');
@@ -161,6 +205,60 @@ bot.on('message', message => {
     }
 
 });
+
+/*
+    ============================================================================
+    Lors de l'ajout d'une réaction
+    ============================================================================
+ */
+bot.on('messageReactionAdd', (reaction, user) => {
+    console.log('messageReactionAdd')
+    if( user.bot ) return;
+    if( reaction.emoji.name != '✅' ) return;
+    let guild = reaction.message.guild
+    api.get('/guilds/'+reaction.message.guild.id+'/roles')
+      .then(function (response) {
+          let roles = response.data
+          let role = roles.find(element => element.message_discord_id == reaction.message.id)
+          if( role && !guild.members.get(user.id).roles.has(role.discord_id) ) {
+                // Si 'role' est défini et que l'utilisateur n'a pas le rôle, lui attribuer
+                console.log('Attribution du role @' + role.name + ' à l\'utilisateur ' + (guild.members.get(user.id).nickname || user.username))
+                let roleToAdd = guild.roles.get(role.discord_id)
+                guild.members.get(user.id).addRole(roleToAdd).catch(console.error)
+          }
+
+      })
+      .catch(function (error) {
+          console.log(error);
+      });
+})
+
+/*
+    ============================================================================
+    Lors de la suppression d'une réaction
+    ============================================================================
+ */
+bot.on('messageReactionRemove', (reaction, user) => {
+    console.log('messageReactionRemove')
+    if( user.bot ) return;
+    if( reaction.emoji.name != '✅' ) return;
+    let guild = reaction.message.guild
+    api.get('/guilds/'+reaction.message.guild.id+'/roles')
+      .then(function (response) {
+          let roles = response.data
+          let role = roles.find(element => element.message_discord_id == reaction.message.id)
+          if (role && guild.members.get(user.id).roles.has(discord_id.id)) {
+            // Si 'role' est defini et que l'utilisateur a le rôle, lui retirer
+            console.log('Supression du role @' + role.name + ' de l\'utilisateur ' + (guild.members.get(user.id).nickname || user.username))
+            let roleToRemove = guild.roles.get(role.discord_id)
+            guild.members.get(user.id).removeRole(role).catch(console.error)
+          }
+
+      })
+      .catch(function (error) {
+          console.log(error);
+      });
+})
 
 
 bot.login(config.bot.token)
