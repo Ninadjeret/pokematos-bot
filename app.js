@@ -29,6 +29,26 @@ bot.help = {
 
 /*
     ----------------------------------------------------------------------------
+    Express
+    ----------------------------------------------------------------------------
+ */
+var express = require('express')
+var app = express()
+app.get('/sync', function (req, res) {
+    api.get(`/guilds`)
+        .then(function (response) {
+            let guilds = response.data;
+            guilds.forEach(async guild => {
+                await bot.configs.set(guild.discord_id, guild);
+            })
+            res.send('OK')
+        })
+
+})
+app.listen(config.syncUrlPort)
+
+/*
+    ----------------------------------------------------------------------------
     Winston Configuraiton
     ----------------------------------------------------------------------------
  */
