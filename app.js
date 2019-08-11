@@ -9,28 +9,26 @@
  * @property {string} syncUrlPort The sync port
  */
 import config from './config/development'
-
 import Discord from 'discord.js'
 import fs from 'fs'
 import winston from 'winston'
 import axios from 'axios'
 import path from 'path'
-import helpers from './helpers.js'
+import listeners from './listeners.js'
 
 const { combine, timestamp, printf } = winston.format
 
 const bot = new Discord.Client()
 bot.configs = new Discord.Collection()
-const api = axios.create({
+bot.api = axios.create({
   baseURL: config.api.baseUrl + '/bot',
   timeout: 20000,
   headers: { Authorization: 'Bearer ' + config.api.token }
 })
-/*
-    ============================================================================
-    Configuration
-    ============================================================================
- */
+
+// ============================================================================
+// Configuration
+// ============================================================================
 bot.commands = new Discord.Collection()
 bot.help = {
   name: [],
@@ -38,11 +36,9 @@ bot.help = {
   description: new Discord.Collection()
 }
 
-/*
-    ----------------------------------------------------------------------------
-    Winston Configuraiton
-    ----------------------------------------------------------------------------
- */
+// ============================================================================
+// Winston Configuration
+// ============================================================================
 winston.configure({
   transports: [
     new winston.transports.Console({
@@ -70,11 +66,9 @@ winston.configure({
   ]
 })
 
-/*
-    ----------------------------------------------------------------------------
-    Chargement des commandes
-    ----------------------------------------------------------------------------
- */
+// ============================================================================
+// Chargement des commandes
+// ============================================================================
 fs.readdir('./commands/', (err, files) => {
   if (err) winston.error(err)
 
@@ -95,15 +89,13 @@ fs.readdir('./commands/', (err, files) => {
   })
 })
 
-/*
-    ============================================================================
-    AU chargement
-    ============================================================================
- */
+// ============================================================================
+// AU chargement
+// ============================================================================
 bot.on('ready', () => {
   bot.user.setActivity('Pokemon Go')
   console.log(`Logged in as ${bot.user.tag}!`)
-  api.get(`/guilds`)
+  bot.api.get(`/guilds`)
     .then(function (response) {
       const guilds = response.data
       guilds.forEach(async guild => {
@@ -112,153 +104,53 @@ bot.on('ready', () => {
     })
 })
 
-/*
-    ============================================================================
-    Lors d'un nouveau membre
-    ============================================================================
- */
+// ============================================================================
+// Lors d'un nouveau membre
+// ============================================================================
 bot.on('guildMemberAdd', member => {
-  const guildConfig = bot.configs.get(member.guild.id)
-  if (guildConfig.settings.welcome_active) {
-    const channel = member.guild.channels.find(val => val.id === guildConfig.settings.welcome_channel_discord_id)
-    if (!channel) return
-    const welcomeMessage = guildConfig.settings.welcome_message
-    channel.send(welcomeMessage.replace('{member}', member))
-  }
+  listeners.guildMemberAddHandler(bot, member)
 })
 
-/*
-    ============================================================================
-    Lors d'un message
-    ============================================================================
- */
-bot.on('message', message => {
-  if (message.author.bot) return
-  if (message.channel.type === 'dm') return
+// ============================================================================
+// Lors d'un message ' +
+// ============================================================================
+bot.on('message', async (message) => {
+  listeners.messageHandler(bot, message)
+  /* TODO: Finish the new permission work
+  // Get the mentions
+  const mentions = message.mentions.roles
+  const roles = await helpers.getRoles(bot, { guildId: message.guild.id })
 
-  const guildConfig = bot.configs.get(message.guild.id)
-  const isMessageToBot = !!(message.mentions.users.find(val => val.id === config.bot.id))
-  const isAdmin = (message.member.hasPermission('ADMINISTRATOR'))
-
-  /*
-        ----------------------------------------------------------------------------
-        Commandes
-        ----------------------------------------------------------------------------
-     */
-  if (isMessageToBot && isAdmin) {
-    const command = helpers.extractCommand(bot, message)
-    console.log(command)
-    const cmd = bot.commands.get(command.cmd)
-    if (cmd) cmd.run(bot, message, command.args, api)
-  } else { // Gestion des captures de raid
-    /*
-            ----------------------------------------------------------------------------
-            Annonce d'un raid texte
-            ----------------------------------------------------------------------------
-         */
-    if (guildConfig.settings.raidreporting_text_active && guildConfig.settings.raidreporting_text_prefixes.length > 0) {
-      guildConfig.settings.raidreporting_text_prefixes.forEach((prefix, i) => {
-        if (message.content.startsWith(prefix)) {
-          api.post('/raids', {
-            text: message.content,
-            user_name: message.author.username,
-            user_discord_id: message.author.id,
-            guild_discord_id: message.guild.id,
-            message_discord_id: message.id,
-            channel_discord_id: message.channel.id
-          })
-            .then(function (response) {
-              console.log(response)
-            })
-            .catch(function (error) {
-              console.log(error)
-            })
-        }
-      })
-    }
-
-    /*
-            ----------------------------------------------------------------------------
-            Annonce d'un raid Image
-            ----------------------------------------------------------------------------
-         */
-    if (guildConfig.settings.raidreporting_images_active) {
-      const attachment = message.attachments.first()
-      if (attachment && attachment.url) {
-        api.post('/raids', {
-          text: attachment.url,
-          user_name: message.author.username,
-          user_discord_id: message.author.id,
-          guild_discord_id: message.guild.id,
-          message_discord_id: message.id,
-          channel_discord_id: message.channel.id
-        })
-          .then(function (response) {
-            console.log(response)
-          })
-          .catch(function (error) {
-            console.log(error)
-          })
-      }
-    }
-
-    // if (message.content.startsWith()  )
-    if (message.content === 'ping') {
-      message.reply('pong')
+  const permissions = roles.map(role => {
+    if (!role.category.restricted) return
+    return role.category.permissions
+  })
+  let isAuthorized = true
+  for (const permission of permissions) {
+    if (isAuthorized && permission.channels.includes(message.channel.id) && mentions.filter(role => permission.roles.includes(role.id))) {
+      isAuthorized = isAuthorized && permission.type === 'auth'
     }
   }
+  if (!isAuthorized) {
+    // Modérer le message
+  } else {
+    // Message valide
+  }
+  */
 })
 
-/*
-    ============================================================================
-    Lors de l'ajout d'une réaction
-    ============================================================================
- */
+// ============================================================================
+// Lors de l'ajout d'une réaction
+// ============================================================================
 bot.on('messageReactionAdd', (reaction, user) => {
-  console.log('messageReactionAdd')
-  if (user.bot) return
-  if (reaction.emoji.name !== '✅') return
-  const guild = reaction.message.guild
-  api.get('/guilds/' + reaction.message.guild.id + '/roles')
-    .then(function (response) {
-      const roles = response.data
-      const role = roles.find(element => element.message_discord_id === reaction.message.id)
-      if (role && !guild.members.get(user.id).roles.has(role.discord_id)) {
-        // Si 'role' est défini et que l'utilisateur n'a pas le rôle, lui attribuer
-        console.log('Attribution du role @' + role.name + ' à l\'utilisateur ' + (guild.members.get(user.id).nickname || user.username))
-        const roleToAdd = guild.roles.get(role.discord_id)
-        guild.members.get(user.id).addRole(roleToAdd).catch(console.error)
-      }
-    })
-    .catch(function (error) {
-      console.log(error)
-    })
+  listeners.messageReactionAddHandler(bot, reaction, user)
 })
 
-/*
-    ============================================================================
-    Lors de la suppression d'une réaction
-    ============================================================================
- */
+// ============================================================================
+// Lors de la suppression d'une réaction
+// ============================================================================
 bot.on('messageReactionRemove', (reaction, user) => {
-  console.log('messageReactionRemove')
-  if (user.bot) return
-  if (reaction.emoji.name !== '✅') return
-  const guild = reaction.message.guild
-  api.get('/guilds/' + reaction.message.guild.id + '/roles')
-    .then(function (response) {
-      const roles = response.data
-      const role = roles.find(element => element.message_discord_id === reaction.message.id)
-      if (role && guild.members.get(user.id).roles.has(discord_id.id)) {
-        // Si 'role' est defini et que l'utilisateur a le rôle, lui retirer
-        console.log('Supression du role @' + role.name + ' de l\'utilisateur ' + (guild.members.get(user.id).nickname || user.username))
-        const roleToRemove = guild.roles.get(role.discord_id)
-        guild.members.get(user.id).removeRole(role).catch(console.error)
-      }
-    })
-    .catch(function (error) {
-      console.log(error)
-    })
+  listeners.messageReactionRemoveHandler(bot, reaction, user)
 })
 
 bot.login(config.bot.token)
