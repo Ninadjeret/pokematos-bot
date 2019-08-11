@@ -1,20 +1,31 @@
-const Discord = require('discord.js')
-const fs = require('fs')
-const helpers = require('./helpers.js')
-const path = require('path')
-const axios = require('axios')
-const winston = require('winston')
-const { combine, timestamp, printf } = winston.format;
+/**
+ * Config file
+ * @typedef {Object} The config object
+ * @property {string} api.baseUrl The API URL
+ * @property {string} api.token The API authentification token
+ * @property {string} bot.id The bot ID
+ * @property {string} bot.token The bot token
+ * @property {string} mapUrl The map URL
+ * @property {string} syncUrlPort The sync port
+ */
+import config from './config/development'
 
+import Discord from 'discord.js'
+import fs from 'fs'
+import winston from 'winston'
+import axios from 'axios'
+import path from 'path'
+import helpers from './helpers.js'
+
+const { combine, timestamp, printf } = winston.format
 
 const bot = new Discord.Client()
 bot.configs = new Discord.Collection()
-const config = require('./config.json')
 const api = axios.create({
   baseURL: config.api.baseUrl + '/bot',
   timeout: 20000,
-  headers: {'Authorization': 'Bearer ' + config.api.token}
-});
+  headers: { Authorization: 'Bearer ' + config.api.token }
+})
 /*
     ============================================================================
     Configuration
@@ -22,9 +33,9 @@ const api = axios.create({
  */
 bot.commands = new Discord.Collection()
 bot.help = {
-  'name': [],
-  'usage': new Discord.Collection(),
-  'description': new Discord.Collection()
+  name: [],
+  usage: new Discord.Collection(),
+  description: new Discord.Collection()
 }
 
 /*
@@ -41,7 +52,7 @@ winston.configure({
           format: 'YYYY-MM-DD HH:mm:ss'
         }),
         printf(({ level, message, timestamp }) => {
-          return `[${timestamp}] [${path.basename(__filename, '.js')}/${level}]: ${message}`;
+          return `[${timestamp}] [${path.basename(__filename, '.js')}/${level}]: ${message}`
         })
       )
     }),
@@ -52,7 +63,7 @@ winston.configure({
           format: 'YYYY-MM-DD HH:mm:ss'
         }),
         printf(({ level, message, timestamp }) => {
-          return `[${timestamp}] [${path.basename(__filename, '.js')}/${level}]: ${message}`;
+          return `[${timestamp}] [${path.basename(__filename, '.js')}/${level}]: ${message}`
         })
       )
     })
@@ -67,7 +78,7 @@ winston.configure({
 fs.readdir('./commands/', (err, files) => {
   if (err) winston.error(err)
 
-  let jsfiles = files.filter(f => f.split('.').pop() === 'js')
+  const jsfiles = files.filter(f => f.split('.').pop() === 'js')
   if (jsfiles.length <= 0) {
     winston.info('No commands to load !')
     return
@@ -75,7 +86,7 @@ fs.readdir('./commands/', (err, files) => {
 
   winston.info(`Loading ${jsfiles.length} commands !`)
   jsfiles.forEach((f, i) => {
-    let props = require(`./commands/${f}`)
+    const props = require(`./commands/${f}`)
     winston.info(`${i + 1}: ${f} loaded!`)
     bot.commands.set(props.help.name, props)
     bot.help.name.push(props.help.name)
@@ -84,24 +95,22 @@ fs.readdir('./commands/', (err, files) => {
   })
 })
 
-
-
 /*
     ============================================================================
     AU chargement
     ============================================================================
  */
 bot.on('ready', () => {
-    bot.user.setActivity('Pokemon Go')
-    console.log(`Logged in as ${bot.user.tag}!`);
-    api.get(`/guilds`)
-        .then(function (response) {
-            let guilds = response.data;
-            guilds.forEach(async guild => {
-                await bot.configs.set(guild.discord_id, guild);
-            })
-        })
-});
+  bot.user.setActivity('Pokemon Go')
+  console.log(`Logged in as ${bot.user.tag}!`)
+  api.get(`/guilds`)
+    .then(function (response) {
+      const guilds = response.data
+      guilds.forEach(async guild => {
+        await bot.configs.set(guild.discord_id, guild)
+      })
+    })
+})
 
 /*
     ============================================================================
@@ -109,15 +118,14 @@ bot.on('ready', () => {
     ============================================================================
  */
 bot.on('guildMemberAdd', member => {
-    let guildConfig = bot.configs.get(member.guild.id);
-    if( guildConfig.settings.welcome_active ) {
-        let channel = member.guild.channels.find(val => val.id === guildConfig.settings.welcome_channel_discord_id);
-        if (!channel) return;
-        let welcomeMessage = guildConfig.settings.welcome_message;
-        channel.send( welcomeMessage.replace('{member}', member) );
-    }
-});
-
+  const guildConfig = bot.configs.get(member.guild.id)
+  if (guildConfig.settings.welcome_active) {
+    const channel = member.guild.channels.find(val => val.id === guildConfig.settings.welcome_channel_discord_id)
+    if (!channel) return
+    const welcomeMessage = guildConfig.settings.welcome_message
+    channel.send(welcomeMessage.replace('{member}', member))
+  }
+})
 
 /*
     ============================================================================
@@ -125,86 +133,81 @@ bot.on('guildMemberAdd', member => {
     ============================================================================
  */
 bot.on('message', message => {
-    if (message.author.bot) return
-    if (message.channel.type === 'dm') return
+  if (message.author.bot) return
+  if (message.channel.type === 'dm') return
 
-    let guildConfig = bot.configs.get(message.guild.id);
-    let isMessageToBot = (message.mentions.users.find(val => val.id === config.bot.id)) ? true : false;
-    let isAdmin = (message.member.hasPermission("ADMINISTRATOR"));
+  const guildConfig = bot.configs.get(message.guild.id)
+  const isMessageToBot = !!(message.mentions.users.find(val => val.id === config.bot.id))
+  const isAdmin = (message.member.hasPermission('ADMINISTRATOR'))
 
-    /*
+  /*
         ----------------------------------------------------------------------------
         Commandes
         ----------------------------------------------------------------------------
      */
-    if( isMessageToBot && isAdmin ) {
-        let command = helpers.extractCommand(bot, message);
-        console.log(command)
-        let cmd = bot.commands.get(command.cmd)
-        if (cmd) cmd.run(bot, message, command.args, api)
-    }
-
-    //Gestion des captures de raid
-    else {
-        /*
+  if (isMessageToBot && isAdmin) {
+    const command = helpers.extractCommand(bot, message)
+    console.log(command)
+    const cmd = bot.commands.get(command.cmd)
+    if (cmd) cmd.run(bot, message, command.args, api)
+  } else { // Gestion des captures de raid
+    /*
             ----------------------------------------------------------------------------
             Annonce d'un raid texte
             ----------------------------------------------------------------------------
          */
-        if( guildConfig.settings.raidreporting_text_active && guildConfig.settings.raidreporting_text_prefixes.length > 0 ) {
-            guildConfig.settings.raidreporting_text_prefixes.forEach((prefix, i) => {
-                if( message.content.startsWith(prefix) ) {
-                    api.post('/raids', {
-                        text: message.content,
-                        user_name: message.author.username,
-                        user_discord_id: message.author.id,
-                        guild_discord_id: message.guild.id,
-                        message_discord_id: message.id,
-                        channel_discord_id: message.channel.id
-                      })
-                      .then(function (response) {
-                        console.log(response);
-                    })
-                    .catch(function (error) {
-                        console.log(error);
-                      });
-                }
+    if (guildConfig.settings.raidreporting_text_active && guildConfig.settings.raidreporting_text_prefixes.length > 0) {
+      guildConfig.settings.raidreporting_text_prefixes.forEach((prefix, i) => {
+        if (message.content.startsWith(prefix)) {
+          api.post('/raids', {
+            text: message.content,
+            user_name: message.author.username,
+            user_discord_id: message.author.id,
+            guild_discord_id: message.guild.id,
+            message_discord_id: message.id,
+            channel_discord_id: message.channel.id
+          })
+            .then(function (response) {
+              console.log(response)
+            })
+            .catch(function (error) {
+              console.log(error)
             })
         }
+      })
+    }
 
-        /*
+    /*
             ----------------------------------------------------------------------------
             Annonce d'un raid Image
             ----------------------------------------------------------------------------
          */
-        if( guildConfig.settings.raidreporting_images_active ) {
-            let attachment = message.attachments.first();
-            if(attachment && attachment.url) {
-                api.post('/raids', {
-                    text: attachment.url,
-                    user_name: message.author.username,
-                    user_discord_id: message.author.id,
-                    guild_discord_id: message.guild.id,
-                    message_discord_id: message.id,
-                    channel_discord_id: message.channel.id
-                  })
-                  .then(function (response) {
-                      console.log(response);
-                  })
-                  .catch(function (error) {
-                      console.log(error);
-                  });
-            }
-        }
-
-
-        //if (message.content.startsWith()  )
-        if (message.content === 'ping') {
-            message.reply('pong');
-        }
+    if (guildConfig.settings.raidreporting_images_active) {
+      const attachment = message.attachments.first()
+      if (attachment && attachment.url) {
+        api.post('/raids', {
+          text: attachment.url,
+          user_name: message.author.username,
+          user_discord_id: message.author.id,
+          guild_discord_id: message.guild.id,
+          message_discord_id: message.id,
+          channel_discord_id: message.channel.id
+        })
+          .then(function (response) {
+            console.log(response)
+          })
+          .catch(function (error) {
+            console.log(error)
+          })
+      }
     }
 
-});
+    // if (message.content.startsWith()  )
+    if (message.content === 'ping') {
+      message.reply('pong')
+    }
+  }
+})
 
 /*
     ============================================================================
@@ -212,25 +215,24 @@ bot.on('message', message => {
     ============================================================================
  */
 bot.on('messageReactionAdd', (reaction, user) => {
-    console.log('messageReactionAdd')
-    if( user.bot ) return;
-    if( reaction.emoji.name != '✅' ) return;
-    let guild = reaction.message.guild
-    api.get('/guilds/'+reaction.message.guild.id+'/roles')
-      .then(function (response) {
-          let roles = response.data
-          let role = roles.find(element => element.message_discord_id == reaction.message.id)
-          if( role && !guild.members.get(user.id).roles.has(role.discord_id) ) {
-                // Si 'role' est défini et que l'utilisateur n'a pas le rôle, lui attribuer
-                console.log('Attribution du role @' + role.name + ' à l\'utilisateur ' + (guild.members.get(user.id).nickname || user.username))
-                let roleToAdd = guild.roles.get(role.discord_id)
-                guild.members.get(user.id).addRole(roleToAdd).catch(console.error)
-          }
-
-      })
-      .catch(function (error) {
-          console.log(error);
-      });
+  console.log('messageReactionAdd')
+  if (user.bot) return
+  if (reaction.emoji.name !== '✅') return
+  const guild = reaction.message.guild
+  api.get('/guilds/' + reaction.message.guild.id + '/roles')
+    .then(function (response) {
+      const roles = response.data
+      const role = roles.find(element => element.message_discord_id === reaction.message.id)
+      if (role && !guild.members.get(user.id).roles.has(role.discord_id)) {
+        // Si 'role' est défini et que l'utilisateur n'a pas le rôle, lui attribuer
+        console.log('Attribution du role @' + role.name + ' à l\'utilisateur ' + (guild.members.get(user.id).nickname || user.username))
+        const roleToAdd = guild.roles.get(role.discord_id)
+        guild.members.get(user.id).addRole(roleToAdd).catch(console.error)
+      }
+    })
+    .catch(function (error) {
+      console.log(error)
+    })
 })
 
 /*
@@ -239,26 +241,24 @@ bot.on('messageReactionAdd', (reaction, user) => {
     ============================================================================
  */
 bot.on('messageReactionRemove', (reaction, user) => {
-    console.log('messageReactionRemove')
-    if( user.bot ) return;
-    if( reaction.emoji.name != '✅' ) return;
-    let guild = reaction.message.guild
-    api.get('/guilds/'+reaction.message.guild.id+'/roles')
-      .then(function (response) {
-          let roles = response.data
-          let role = roles.find(element => element.message_discord_id == reaction.message.id)
-          if (role && guild.members.get(user.id).roles.has(discord_id.id)) {
-            // Si 'role' est defini et que l'utilisateur a le rôle, lui retirer
-            console.log('Supression du role @' + role.name + ' de l\'utilisateur ' + (guild.members.get(user.id).nickname || user.username))
-            let roleToRemove = guild.roles.get(role.discord_id)
-            guild.members.get(user.id).removeRole(role).catch(console.error)
-          }
-
-      })
-      .catch(function (error) {
-          console.log(error);
-      });
+  console.log('messageReactionRemove')
+  if (user.bot) return
+  if (reaction.emoji.name !== '✅') return
+  const guild = reaction.message.guild
+  api.get('/guilds/' + reaction.message.guild.id + '/roles')
+    .then(function (response) {
+      const roles = response.data
+      const role = roles.find(element => element.message_discord_id === reaction.message.id)
+      if (role && guild.members.get(user.id).roles.has(discord_id.id)) {
+        // Si 'role' est defini et que l'utilisateur a le rôle, lui retirer
+        console.log('Supression du role @' + role.name + ' de l\'utilisateur ' + (guild.members.get(user.id).nickname || user.username))
+        const roleToRemove = guild.roles.get(role.discord_id)
+        guild.members.get(user.id).removeRole(role).catch(console.error)
+      }
+    })
+    .catch(function (error) {
+      console.log(error)
+    })
 })
-
 
 bot.login(config.bot.token)
