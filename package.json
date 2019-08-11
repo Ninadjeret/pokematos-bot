@@ -18,5 +18,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Ninadjeret/pokematos-bot"
+  },
+  "engines" : {
+    "node" : ">=10"
   }
 }
