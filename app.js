@@ -14,11 +14,13 @@ import fs from 'fs'
 import winston from 'winston'
 import axios from 'axios'
 import path from 'path'
+import helpers from './helpers'
 import listeners from './listeners.js'
 
 const { combine, timestamp, printf } = winston.format
 
 const bot = new Discord.Client()
+bot.winston = winston
 bot.configs = new Discord.Collection()
 bot.api = axios.create({
   baseURL: config.api.baseUrl + '/bot',
@@ -90,18 +92,28 @@ fs.readdir('./commands/', (err, files) => {
 })
 
 // ============================================================================
-// AU chargement
+// Au chargement
 // ============================================================================
-bot.on('ready', () => {
+bot.on('ready', async () => {
   bot.user.setActivity('Pokemon Go')
-  console.log(`Logged in as ${bot.user.tag}!`)
-  bot.api.get(`/guilds`)
-    .then(function (response) {
-      const guilds = response.data
-      guilds.forEach(async guild => {
-        await bot.configs.set(guild.discord_id, guild)
-      })
-    })
+  winston.info(`Logged in as ${bot.user.tag}!`)
+
+  // Récupère les derniers messages postés et les charge pour pouvoir répondre aux réactions
+  const guilds = await helpers.getGuilds(bot)
+  const channelsToLoad = []
+  for await (const guild of guilds) {
+    await bot.configs.set(guild.discord_id, guild)
+    const roles = await helpers.getRoles(bot, { guildId: guild.discord_id })
+    const uniqueChannelsIds = [...new Set(roles.map(role => { return role.category.channel_discord_id }))]
+    channelsToLoad.push(...uniqueChannelsIds)
+  }
+  let total = 0
+  for await (const channel of channelsToLoad) {
+    const messages = await bot.channels.get(channel).fetchMessages({ limit: 100 }).catch(console.error)
+    total += messages.size
+    if (messages.size > 90) winston.warn(`Channel ${channel} is getting crowded ! Already ${messages.size} messages to watch`)
+  }
+  winston.info(`Watching ${total} messages`)
 })
 
 // ============================================================================

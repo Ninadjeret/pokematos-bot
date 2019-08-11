@@ -22,5 +22,12 @@ module.exports = {
     } catch (e) {
       console.error(e.message)
     }
+  },
+  getGuilds: async function (bot) {
+    try {
+      return (await bot.api.get(`/guilds`)).data
+    } catch (e) {
+      console.error(e.message)
+    }
   }
 }

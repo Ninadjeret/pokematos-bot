@@ -81,21 +81,17 @@ async function messageReactionRemoveHandler (bot, reaction, user) {
   console.log('messageReactionRemoveHandler')
   if (user.bot) return
   if (reaction.emoji.name !== '✅') return
+
   const guild = reaction.message.guild
-  bot.api.get('/guilds/' + reaction.message.guild.id + '/roles')
-    .then(function (response) {
-      const roles = response.data
-      const role = roles.find(element => element.message_discord_id === reaction.message.id)
-      if (role && guild.members.get(user.id).roles.has(discord_id.id)) {
-        // Si 'role' est defini et que l'utilisateur a le rôle, lui retirer
-        console.log('Supression du role @' + role.name + ' de l\'utilisateur ' + (guild.members.get(user.id).nickname || user.username))
-        const roleToRemove = guild.roles.get(role.discord_id)
-        guild.members.get(user.id).removeRole(role).catch(console.error)
-      }
-    })
-    .catch(function (error) {
-      console.log(error)
-    })
+  const member = guild.members.get(user.id)
+  const roles = await helpers.getRoles(bot, { guildId: guild.id })
+  const role = roles.find(element => element.message_discord_id === reaction.message.id)
+  if (!role) return
+  if (member.roles.has(role.discord_id)) {
+    // Si 'role' est defini et que l'utilisateur a le rôle, lui retirer
+    bot.winston.info(`Supression du role @${role.name} de l'utilisateur ${member.nickname || user.username}`)
+    member.removeRole(role.discord_id).catch(console.error)
+  }
 }
 
 async function messageReactionAddHandler (bot, reaction, user) {
@@ -103,20 +99,15 @@ async function messageReactionAddHandler (bot, reaction, user) {
   if (user.bot) return
   if (reaction.emoji.name !== '✅') return
   const guild = reaction.message.guild
-  bot.api.get('/guilds/' + reaction.message.guild.id + '/roles')
-    .then(function (response) {
-      const roles = response.data
-      const role = roles.find(element => element.message_discord_id === reaction.message.id)
-      if (role && !guild.members.get(user.id).roles.has(role.discord_id)) {
-        // Si 'role' est défini et que l'utilisateur n'a pas le rôle, lui attribuer
-        console.log('Attribution du role @' + role.name + ' à l\'utilisateur ' + (guild.members.get(user.id).nickname || user.username))
-        const roleToAdd = guild.roles.get(role.discord_id)
-        guild.members.get(user.id).addRole(roleToAdd).catch(console.error)
-      }
-    })
-    .catch(function (error) {
-      console.log(error)
-    })
+  const member = guild.members.get(user.id)
+  const roles = await helpers.getRoles(bot, { guildId: guild.id })
+  const role = roles.find(element => element.message_discord_id === reaction.message.id)
+  if (!role) return
+  if (!member.roles.has(role.discord_id)) {
+    // Si 'role' est défini et que l'utilisateur n'a pas le rôle, lui attribuer
+    bot.winston.info(`Attribution du role @${role.name} à l'utilisateur ${member.nickname || user.username}`)
+    member.addRole(role.discord_id).catch(console.error)
+  }
 }
 
 async function guildMemberAddHandler (bot, member) {
