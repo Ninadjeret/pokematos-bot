@@ -1,12 +1,30 @@
 {
-  "name": "Pokematos",
+  "name": "pokematos",
+  "description": "",
   "version": "1.0.0",
   "main": "app.js",
+  "scripts": {
+    "start": "node -r esm app.js"
+  },
   "dependencies": {
     "axios": "^0.19.0",
     "discord.js": "^11.5.0",
+<<<<<<< HEAD
     "express": "^4.17.1",
     "fs": "^0.0.1",
+=======
+    "fs": "^0.0.2",
+>>>>>>> 8d73f8474880bbefd248c1bb49d599bd258d311a
     "winston": "^3.2.1"
+  },
+  "devDependencies": {
+    "standard": "^13.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ninadjeret/pokematos-bot"
+  },
+  "engines" : {
+    "node" : ">=10"
   }
 }
