@@ -35,6 +35,7 @@ bot.help = {
 var express = require('express')
 var app = express()
 app.get('/sync', function (req, res) {
+    console.log('sync')
     api.get(`/guilds`)
         .then(function (response) {
             let guilds = response.data;
@@ -42,7 +43,10 @@ app.get('/sync', function (req, res) {
                 await bot.configs.set(guild.discord_id, guild);
             })
             res.send('OK')
+            console.log('sync done')
         })
+        .catch(function (error) {
+        });
 
 })
 app.listen(config.syncUrlPort)
@@ -134,7 +138,7 @@ bot.on('guildMemberAdd', member => {
         let channel = member.guild.channels.find(val => val.id === guildConfig.settings.welcome_channel_discord_id);
         if (!channel) return;
         let welcomeMessage = guildConfig.settings.welcome_message;
-        channel.send( welcomeMessage.replace('{member}', member) );
+        channel.send( welcomeMessage.replace('{utilisateur}', member) );
     }
 });
 
