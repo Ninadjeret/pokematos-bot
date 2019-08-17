@@ -47,7 +47,7 @@ var express = require('express')
 var app = express()
 app.get('/sync', function (req, res) {
     console.log('sync')
-    api.get(`/guilds`)
+    bot.api.get(`/guilds`)
         .then(function (response) {
             let guilds = response.data;
             guilds.forEach(async guild => {
@@ -128,9 +128,8 @@ bot.on('ready', async () => {
   const guilds = await helpers.getGuilds(bot)
   const channelsToLoad = []
   for await (const guild of guilds) {
-    await bot.configs.set(guild.discord_id, guild)
-    const roles = await helpers.getRoles(bot, { guildId: guild.discord_id })
-    const uniqueChannelsIds = [...new Set(roles.map(role => { return role.category.channel_discord_id }))]
+    const uniqueChannelsIds = guild.watched_channels
+    console.log(guild.watched_channels)
     channelsToLoad.push(...uniqueChannelsIds)
   }
   let total = 0
@@ -154,41 +153,31 @@ bot.on('guildMemberAdd', member => {
 // ============================================================================
 bot.on('message', async (message) => {
   listeners.messageHandler(bot, message)
-  /* TODO: Finish the new permission work
-  // Get the mentions
-  const mentions = message.mentions.roles
-  const roles = await helpers.getRoles(bot, { guildId: message.guild.id })
-
-  const permissions = roles.map(role => {
-    if (!role.category.restricted) return
-    return role.category.permissions
-  })
-  let isAuthorized = true
-  for (const permission of permissions) {
-    if (isAuthorized && permission.channels.includes(message.channel.id) && mentions.filter(role => permission.roles.includes(role.id))) {
-      isAuthorized = isAuthorized && permission.type === 'auth'
-    }
-  }
-  if (!isAuthorized) {
-    // Modérer le message
-  } else {
-    // Message valide
-  }
-  */
 })
 
 // ============================================================================
-// Lors de l'ajout d'une réaction
+// Lors de l'ajout/suppresion d'une réaction
 // ============================================================================
 bot.on('messageReactionAdd', (reaction, user) => {
   listeners.messageReactionAddHandler(bot, reaction, user)
 })
-
-// ============================================================================
-// Lors de la suppression d'une réaction
-// ============================================================================
 bot.on('messageReactionRemove', (reaction, user) => {
   listeners.messageReactionRemoveHandler(bot, reaction, user)
 })
+
+// ============================================================================
+// Lors de la création/modification ou suppression d'un eolr
+// ============================================================================
+bot.on('roleCreate', (role) => {
+  console.log(role)
+  listeners.guildRoleAdd(bot, role)
+})
+bot.on('roleUpdate', (oldRole, newRole) => {
+  listeners.guildRoleUpdate(bot, oldRole, newRole)
+})
+bot.on('roleDelete', (role) => {
+  listeners.guildRoleDelete(bot, role)
+})
+
 
 bot.login(config.bot.token)

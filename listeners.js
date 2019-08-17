@@ -5,7 +5,10 @@ export default {
   messageHandler: messageHandler,
   messageReactionRemoveHandler: messageReactionRemoveHandler,
   messageReactionAddHandler: messageReactionAddHandler,
-  guildMemberAddHandler: guildMemberAddHandler
+  guildMemberAddHandler: guildMemberAddHandler,
+  guildRoleAdd: guildRoleAdd,
+  guildRoleUpdate: guildRoleUpdate,
+  guildRoleDelete: guildRoleDelete
 }
 
 async function messageHandler (bot, message) {
@@ -16,6 +19,8 @@ async function messageHandler (bot, message) {
   const guildConfig = bot.configs.get(message.guild.id)
   const isMessageToBot = !!(message.mentions.users.find(val => val.id === config.bot.id))
   const isAdmin = (message.member.hasPermission('ADMINISTRATOR'))
+
+  console.log(bot.configs)
 
   if (isMessageToBot && isAdmin) {
     const command = helpers.extractCommand(bot, message)
@@ -54,7 +59,7 @@ async function messageHandler (bot, message) {
       const attachment = message.attachments.first()
       if (attachment && attachment.url) {
         bot.api.post('/raids', {
-          text: attachment.url,
+          url: attachment.url,
           user_name: message.author.username,
           user_discord_id: message.author.id,
           guild_discord_id: message.guild.id,
@@ -68,6 +73,36 @@ async function messageHandler (bot, message) {
             console.log(error)
           })
       }
+    }
+
+    // ============================================================================
+    // COntrole des mentions autorisées
+    // ============================================================================
+    const userRolesIds = message.member.roles.keyArray();
+    const mentions = message.mentions.roles
+    const roles = await helpers.getRoles(bot, { guildId: message.guild.id })
+    let isAuthorized = true
+    for( const mention of mentions ) {
+      let role = roles.find(function(element) {
+        return element.discord_id == mention[0] ;
+      });
+      if( role.category.restricted ) {
+        isAuthorized = false
+        let findChannel = false
+        let findRole = false
+        for( const permission of role.category.permissions ) {
+          if( permission.channels.find( item => item == message.channel.id) ) findChannel = true
+          console.log(userRolesIds.filter(value => permission.roles.includes(value)))
+          console.log(userRolesIds.filter(value => permission.roles.includes(value)).length)
+          if( userRolesIds.filter(value => permission.roles.includes(value)).length > 0 ) findRole = true
+        }
+        isAuthorized = findChannel && findRole
+      }
+    }
+
+    if( !isAuthorized ) {
+        message.channel.send('Ahum, merci de ne pas mentionner ce role ici')
+        message.delete()
     }
 
     // if (message.content.startsWith()  )
@@ -117,6 +152,52 @@ async function guildMemberAddHandler (bot, member) {
     const channel = member.guild.channels.find(val => val.id === guildConfig.settings.welcome_channel_discord_id)
     if (!channel) return
     const welcomeMessage = guildConfig.settings.welcome_message
-    channel.send(welcomeMessage.replace('{member}', member))
+    channel.send(welcomeMessage.replace('{utilisateur}', member))
   }
+}
+
+async function guildRoleAdd (bot, role) {
+  console.log('guildRoleAdd')
+  if( role.name == '@everyone' ) return
+  let guildId = role.guild.id
+  bot.api.post('/guilds/'+guildId+'/roles', {
+    discord_id: role.id,
+    name: role.name,
+    color: role.color,
+  })
+    .then(function (response) {
+      console.log(response)
+    })
+    .catch(function (error) {
+      console.log(error)
+    })
+}
+
+async function guildRoleUpdate (bot, oldRole, newRole) {
+  console.log('guildRoleUpdate')
+  if( newRole.name == '@everyone' ) return
+  let guildId = newRole.guild.id
+  bot.api.put('/guilds/'+guildId+'/roles/'+newRole.id, {
+    name: newRole.name,
+    color: newRole.color,
+  })
+    .then(function (response) {
+      console.log(response)
+    })
+    .catch(function (error) {
+      console.log(error)
+    })
+}
+
+async function guildRoleDelete (bot, role) {
+  console.log('guildRoleDelete')
+  if( role.name == '@everyone' ) return
+  let guildId = role.guild.id
+  bot.api.delete('/guilds/'+guildId+'/roles/'+role.id)
+    .then(function (response) {
+      console.log(response)
+    })
+    .catch(function (error) {
+      console.log(error)
+    })
 }
